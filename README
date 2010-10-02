@@ -1,0 +1,62 @@
+My clojure learning lab...
+
+Setting up a Vim and Screen based dev environment for
+Clojure.
+
+1. Get clojure zips from clojure.org/downloads
+2. VimClojure:
+    - download VimClojure
+    - I like VimClojure for rainbow parens and paren matching
+    - I followed http://writequit.org/blog/?p=386 to put VimClojure stuff in .vim/
+    b/c I couldn't ng to work and sending code to screen via slime seems just as
+    good
+
+    - add to .vimrc:
+
+    " clojure stuff
+    set nocompatible
+    filetype plugin indent on
+    " Settings for VimClojure
+    let g:clj_highlight_builtins=1      " Highlight Clojure's builtins
+    let g:clj_paren_rainbow=1           " Rainbow parentheses'!
+    " works with slime.vim to send the entire buffer to the repl
+    nmap <C-m> ggVG<C-c><C-c>
+
+3. Get slime.vim to integrate with the repl    - http://s3.amazonaws.com/mps/slime.vim
+    - copy and paste and put in ~/.vim/plugin
+
+4. Enhancing Clojure REPL with rlwrap:
+    - http://en.wikibooks.org/wiki/Clojure_Programming/Getting_Started#Enhancing_Clojure_REP
+L_with_rlwrap
+    - create clj.sh
+    - copy and paste to create ~/.clj_completions
+    - copy and paste to create ~/.inputrc
+    - I do this for a couple of reasons for clj_completions and for the bash
+    script to start the repl
+
+5. screen/byobu
+    - quick start:
+    byobu -S clojure to start screen with named session
+    Ctrl-A S to split screen
+    Ctrl-A :resize to resize
+    Ctrl-A tab to move to lower
+    Ctrl-A c to create new in lower
+
+6. start repl once via, and send the gen_clj_completions.clj to the repl via slime:
+    java -cp path/to/clojure.jar clojure.main
+    in vim with gen_clj_completions.clj, C-c, C-c
+
+7. exit the repl and start forever after in the lower screen with clj.sh
+
+8. Highly recommend the build tool Leiningen
+
+Other:
+
+Eclipse!
+http://www.assembla.com/wiki/show/clojure/Getting_Started_with_Eclipse_and_Counterclockwise
+
+http://zef.me/2470/building-clojure-projects-with-leiningen
+http://lisp4fun.blogspot.com/2010/02/leiningen-and-vimclojure.html
+http://github.com/technomancy/leiningen
+
+
