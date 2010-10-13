@@ -85,4 +85,20 @@
         text-area (create-text-area panel-width (- panel-height (.getHeight text-field)))]
     (configure-gui frame panel text-field text-area)))
 
-(main)
+;(main)
+
+(def perms ["usc", "ucs",
+           "suc", "scu",
+           "cus", "csu"])
+
+(def dictionary
+  (->> (slurp "/usr/share/dict/words")
+    s/split-lines
+	  (map s/lower-case)
+	  (into #{})))
+
+(defn suck[]
+  (filter #(.contains % 
+             (doseq [i (range 0 5)]
+               (perms i))
+             dictionary)))
