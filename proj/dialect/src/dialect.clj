@@ -97,8 +97,9 @@
 	  (map s/lower-case)
 	  (into #{})))
 
-(defn suck[]
-  (filter #(.contains % 
-             (doseq [i (range 0 5)]
-               (perms i))
-             dictionary)))
+(defn suck[item]
+  (filter #(.contains % item) dictionary))
+
+(defn main2 []
+  (mapcat suck perms))
+  
