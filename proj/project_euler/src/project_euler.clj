@@ -67,12 +67,42 @@
 
 ;;------------------------------------------------------
 ;; For problem 2
+;; "omg, CIA agents are supposed to distribute crack to
+;; the inner city not smoke it."
 ;;------------------------------------------------------
-(defn fibonacci
-  [num-terms]
-  (loop [fseq (seq ())
-         prev 1
-         curr 2]
-    (if (<= num-terms 0)
+(defn fib
+  " return fibonacci out to max-terms"
+  [max-terms]
+  (loop [fseq (seq [1 2])
+         sum-evens 0]
+    (if (> (count fseq) max-terms )
+      ;sum-evens
       fseq
-      (recur (concat fseq prev curr) curr (+ curr prev)))))
+      (recur (concat fseq 
+               (vector
+                 (+ 
+                   (last fseq)
+                   (nth fseq (- (count fseq) 2)))))
+        (if (even? (last fseq))
+          (+ sum-evens (last fseq))
+          sum-evens)
+        ))))
+               
+(defn fib-v
+  " return fibonacci out to max-value, summing the evens"
+  [max-value]
+  (loop [fseq (seq [1 2])
+         sum-evens 0]
+    (if (> (last fseq) max-value)
+      ;sum-evens
+      (butlast fseq)
+      (recur (concat fseq 
+               (vector
+                 (+ 
+                   (last fseq)
+                   (nth fseq (- (count fseq) 2)))))
+        (if (even? (last fseq))
+          (+ sum-evens (last fseq))
+          sum-evens)
+        ))))
+  
