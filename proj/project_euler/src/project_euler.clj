@@ -106,3 +106,54 @@
           sum-evens)
         ))))
   
+;;------------------------------------------------------
+;; Problem 6
+;; The sum of the squares of the first ten natural numbers is,
+;; 1^(2) + 2^(2) + ... + 10^(2) = 385
+
+;; The square of the sum of the first ten natural numbers is,
+;; (1 + 2 + ... + 10)^(2) = 55^(2) = 3025
+;; 
+;; Find the difference between the sum of the squares of 
+;; the first one hundred natural numbers and the square of the sum.
+;;------------------------------------------------------
+(defn sq-of-sum
+  "sqaure the sum of the first n numbers"
+  [n]
+  (let[ sum (reduce + (range 1 n))]
+    (* sum sum)))
+ 
+(defn sum-of-sq
+  "sum of the squares of the first n numbers"
+  [n]
+  (reduce + (for [x (range 1 n)] (* x x))))
+
+(defn sq-sum-diff
+  [n]
+  (- (sq-of-sum n) (sum-of-sq n)))
+
+;;------------------------------------------------------
+;; Required for problems 3 and 5
+;;------------------------------------------------------
+(defn is-prime
+  "return true if the number is prime"
+  [n]
+  (if (> n 3)
+    (if (zero? (rem n 2))
+      false
+      (if (zero? (rem n 3))
+        false
+	    ; avoid considering multiples of 2 and 3.  Done easily and
+	    ; simply by starting at 5 and incr by 2 and 4 alternatively, i.e.
+	    ;  5, 7, 11, 13, 17, 19, 23, 25, 29, 31, 35, 37, ...
+	    (loop [max-div (inc (* n n))
+	           divisor 5
+	           incr 2
+	           ret true]
+	      (if (>= divisor max-div)
+	        ret
+	        (recur max-div (+ divisor incr) (- 6 incr) (if (zero? (rem n divisor)) false true))
+	        )
+	      )))
+    true))
+            
