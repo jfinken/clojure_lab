@@ -7,7 +7,10 @@
   (:use ring.middleware.stacktrace)
   (:use ring.middleware.file)
   (:use ring.middleware.file-info)
-  (:require [compojure.route :as route]))
+  (:use mini-browser.util)  
+  (:require [compojure.route :as route]
+            [clojure.string :as str]
+            [clojure.repl :as repl]))
   
 ;;-----------------------------------------------------------------------------
 ;; mini-browser lab from labrepl
@@ -20,16 +23,21 @@
    "/stylesheets/shThemeDefault.css"
    "/stylesheets/application.css"])
 
+(def default-stylesheets-1
+  ["/public/shCore.css"
+   "/public/shThemeDefault.css"
+   "/public/application.css"])
+
 (def default-javascripts
   ["/javascripts/jquery.js"
    "/javascripts/application.js"
    "/javascripts/shCore.js"
-   "/jjavascripts/shBrushClojure.js"])
+   "/javascripts/shBrushClojure.js"])
  
 (html [:p "hello world"])
 (html [:p {:class "awesome"} "hello world"])
 
-(def title "JF-Browser")
+(def title "Mini-Browser")
 
 (defn mockup-1
   "test hiccup to html"
@@ -149,7 +157,95 @@ around an unordered list of links from namespace-link."
                             :join? false}))
 
 ;(mockup-server)
-;Create a mockup-server function that calls run-server with three arguments:
-;   1. a map with the port to use (8999)
-;   2. the routes to serve ("/*", i.e. everything)
-;   3. a servlet that serves the mockup-routes
+
+;;-----------------------------------------------------------------------------
+;; Making it live
+;;-----------------------------------------------------------------------------
+(defn layout [& body]
+  (html
+    [:head
+     [:title title]
+     (apply include-css default-stylesheets)
+     (apply include-js default-javascripts)]
+    [:body {:id "browser"}
+     [:div {:id "header"}
+      [:h2 title]]
+     [:div {:id "content"}
+      body]
+     [:div {:id "footer"}
+      "Clojure Mini-Browser"]]))
+
+(defn namespace-names
+  "return all namespace names sorted, calls all-ns"
+  []
+  (sort (map ns-name (all-ns))))
+
+(defn var-names
+  "Sorted list of var names in a namespace (symbols)."
+  [ns]
+  (when-let [ns (find-ns (symbol ns))]
+    (sort (keys (ns-publics ns)))))
+
+(defn var-symbol
+ "Create a var-symbol, given the ns and var names as strings."
+  [ns var]
+  (symbol (str ns "/" var)))	
+
+(defn view-function
+  [func]
+  (html
+   [:h3 (find-var (symbol func))]))
+
+(defn var-symbol
+  "Create a var-symbol, given the ns and var names as strings."
+  [ns var]
+  (symbol (str ns "/" var)))
+
+(defn var-detail
+  [ns var]
+  (when var
+    (let [sym (var-symbol ns var)
+          var (find-var sym)]
+      (html [:h3 sym]
+            [:h4 "Docstring"]
+            [:pre [:code
+                   (with-out-str (print-doc var))]]
+            [:h4 "Source"]
+            (code* (repl/source-fn sym))))))
+
+(defroutes browser-routes
+  (GET
+   "/"
+   []
+   (html
+    (layout
+     (namespace-browser (namespace-names))
+     [:div {:class "browse-list empty"}])))
+  (GET
+   "/browse/*"
+   request
+   (let [[ns var] (str/split (get-in request [:params "*"]) #"/")]
+     (html
+      (layout
+       (namespace-browser (namespace-names))
+       (var-browser ns (var-names ns))
+       (var-detail ns var))))))
+
+(defn namespace-names-less-intuitive
+  "Sorted list of namespace names (strings)."
+  []
+  (->> (all-ns)
+       (map #(.name %))
+       (sort)))
+
+(defroutes static-routes
+  "for static content"
+  (route/files "/")
+  (route/not-found "<h1>Not Found.  Oh snap!  404ed your ass...</h1>"))
+
+(defroutes app-routes
+  (routes browser-routes static-routes))
+
+(defn main []
+  (run-jetty (var app-routes) {:port 9000
+                               :join? false}))
