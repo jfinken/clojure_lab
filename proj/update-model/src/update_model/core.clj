@@ -35,9 +35,12 @@
   (put c :bryce 29)
   (put c {:oliver 16, :tom 31}))
 
-;-----------------------------------------------------------------------------
-; Refs
-;-----------------------------------------------------------------------------
+;------------------------------------------------------------------------------
+; Refs: coordinated state (i.e. transfer of funds between two bank accounts)
+;   identies: the two accounts
+;   state: data types, primitives or complex structures from maps, lists, etc.
+;   in this case, the amount of funds transferred.
+;------------------------------------------------------------------------------
 (defn create
   "cache based on refs"
   ([] (create {}))
@@ -83,3 +86,34 @@
     (:estimatedResultCount 
       (:cursor 
         (:responseData (read-json (gsearch terms)))))))
+
+(def clojure-result (future (est-hit-count "san fran giants")))
+
+(defn fight
+  "takes two search terms. Start one future to search for each term, and then a 
+  third future that waits on the first two"
+  [term-1 term-2]
+  (let [result-1 (future (est-hit-count term-1))
+        result-2 (future (est-hit-count term-2))]
+    (future {term-1 @result-1 term-2 @result-2})))
+
+; for example
+(def win (fight "Obama" "god"))
+
+;-----------------------------------------------------------------------------
+; Agents
+;-----------------------------------------------------------------------------
+(def fight-results (agent {}))
+
+(defn add-estimate
+  [input-map term]
+  (assoc input-map term (est-hit-count term)))
+
+(defn main
+  []
+  (doseq
+    [term ["sf giants" "texas rangers"]]
+    (send-off fight-results add-estimate term))
+  ;(await-for 1000 fight-results)
+  (await fight-results)
+  @fight-results)
