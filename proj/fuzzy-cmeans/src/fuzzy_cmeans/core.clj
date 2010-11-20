@@ -95,10 +95,10 @@
   (vec (+ i (* num-cols j))))
   
 (defn alter-ij-of-ref-vec
-  [i j num-cols ref-vec value]
+  [col row num-cols ref-vec value]
   (dosync 
     (ref-set ref-vec 
-      (assoc @ref-vec (+ i (* num-cols j)) value))))
+      (assoc @ref-vec (+ col (* num-cols row)) value))))
 
 
 ;------------------------------------------------------------------------------
