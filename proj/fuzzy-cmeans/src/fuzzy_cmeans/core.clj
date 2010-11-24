@@ -89,12 +89,17 @@
   (coords-at [this indx] (coords indx))
   (dimension [this] (count coords)))
 
+(defn update-cluster-index
+  "Return a new ClusterPoint with the cluster-index assigned to val"
+  [cpoint val]
+  (assoc cpoint :cluster-index val))
+
 ; Helper fns for the U matrix
-(defn val-ij-of-vec
-  [i j num-cols vec]
-  (vec (+ i (* num-cols j))))
+(defn val-colrow-of-vec
+  [col row num-cols vec]
+  (vec (+ col (* num-cols row))))
   
-(defn alter-ij-of-ref-vec
+(defn alter-colrow-of-ref-vec
   [col row num-cols ref-vec value]
   (dosync 
     (ref-set ref-vec 
@@ -110,6 +115,72 @@
 (def U (ref []))
 (def fuzzy (ref -1))
 (def eps (Math/pow 10 -5)) ; algorithm precision
+
+; sum a vector
+(defn sum-vec
+  "Simply sum the contents of a vec"
+  [vec]
+  (apply + vec))
+
+; euclidean distance in only 2-d
+(defn euclid-dist-2d-or-eps
+  "Return the 2D euclidean distance of two cluster points"
+  [cp1 cp2]
+  (let [diff
+        (Math/sqrt (+ (Math/pow (- (coords-at cp1 0) (coords-at cp2 0)) 2)
+                      (Math/pow (- (coords-at cp1 1) (coords-at cp2 1)) 2)))]
+    (if (zero? diff)
+      eps
+      diff)))
+       
+(defn init-U-matrix-1
+  "Part 1 of 3 in the initialization of the U matrix"
+  [cpoint i]
+  (doseq [j (range (count @clusters))]
+    (alter-colrow-of-ref-vec j i 
+      (count @clusters) U (euclid-dist-2d-or-eps cpoint (@clusters j)))
+    ))
+
+(defn init-U-matrix-2
+  "Part 2 of 3 in the initialization of the U matrix"
+  [cpoint i]
+ (let [curr-sum (sum-vec @U)]
+   (doseq [j (range (count @clusters))]
+     (alter-colrow-of-ref-vec j i
+       (count @clusters) U 
+       ; value to stuff into U
+       (/ 1.0 (Math/pow (/ (val-colrow-of-vec j i (count @clusters) @U) curr-sum) (/ 2.0 (- @fuzzy 1.0)))))
+     )))
+
+(defn init-U-matrix-3
+  "Part 3 of 3 in the initialization of the U matrix"
+  [cpoint i]
+  (let [curr-sum (sum-vec @U)]
+    (doseq [j (range (count @clusters))]
+      (alter-colrow-of-ref-vec j i
+        (count @clusters) U
+        ; value to stuff into U
+        (/ (val-colrow-of-vec j i (count @clusters) @U) curr-sum)))
+    ))
+
+(defn recalc-cluster-index
+  "Recalculate the cluster index of the given point"
+  [cpoint i]
+  (loop [max -1.0 j (count @clusters) p nil]
+    (if (zero? j)
+      nil
+      (recur 
+        (if (< max (val-colrow-of-vec j i (count @clusters) @U))
+          (val-colrow-of-vec j i (count @clusters) @U)
+          max)
+        (dec j)
+        ; side-effect, update the point's cluster index
+        nil
+        ;(if (== max 0.5)
+        ;  (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
+        ;  (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j)))))
+        ))))
+
 (defn init-cmeans
   "Init the algorithm with a list of cluster-points, a list of cluster-points
   representing the initial number of clusters and their centroids, and an initial
@@ -123,47 +194,21 @@
   (dosync (ref-set fuzzy in-fuzzy))
   
   ; loop over the points and clusters to create the initial U matrix
+  (doseq [i (range (count @data-points))]
+    (init-U-matrix-1 (@data-points i) i)
+    (init-U-matrix-2 (@data-points i) i)
+    (init-U-matrix-3 (@data-points i) i))
+  
+  ; recalculate cluster indices
+  (doseq [i (range (count @data-points))]
+    (recalc-cluster-index (@data-points i) i))
+  
   )
-
-; euclidean distance in only 2-d
-(defn euclid-dist-2d-or-eps
-  "Return the 2D euclidean distance of two cluster points"
-  [cp1 cp2]
-  (let [diff
-        (Math/sqrt (+ (Math/pow (- (coords-at cp1 0) (coords-at cp2 0)) 2)
-                      (Math/pow (- (coords-at cp1 1) (coords-at cp2 1)) 2)))]
-    (if (zero? diff)
-      eps
-      diff)))
-        
-(defn init-U-matrix-1
-  [cpoint i]
-  (let [j 0
-        sum 0]
-    (doseq [cent (seq @clusters)]
-      (alter-ij-of-ref-vec i j 
-        (count @clusters) U (euclid-dist-2d-or-eps cpoint cent))
-      (+ sum (val-ij-of-vec i j (count @clusters) @U)))
-        ; return sum
-        sum))
-
 ;------------------------------------------------------------------------------
 ; Client code
 ;------------------------------------------------------------------------------
-(comment
-	(defn gen-cluster-points-bunk 
-	  "Return a vector of n cluster points with random coordinate values
-	   within the given range"
-	  [n xmin xmax ymin ymax]
-	  (let [ret (vector)]
-	    (doseq [m (range n)]
-	      (let [x ( + (mod (rand Integer/MAX_VALUE) (inc (- xmax xmin))) xmin)
-	           y ( + (mod (rand Integer/MAX_VALUE) (inc (- ymax ymin))) ymin)]
-	      (conj ret (ClusterPoint. (vector x y) -1))))
-	      ;(println m x y)))
-	    ret))
- )
 
+; tested
 (defn gen-cluster-points
   "Return a vector of n cluster points with random coordinate values
    within the given range"
@@ -179,29 +224,15 @@
                    ( + (mod (rand Integer/MAX_VALUE) (inc (- xmax xmin))) xmin) ;x
                    ( + (mod (rand Integer/MAX_VALUE) (inc (- ymax ymin))) ymin));y
                  -1))))))
-;(gen-cluster-points 10 100 500 100 500)
 
-(comment
-; init-euclidean-sum-1
-; first iteration of three in initializing a row in the U matrix
-(defn init-euclidean-sum-1
-  [cpoint]
-  (loop [j 0
-         row-of-u []
-         sum 0
-         [cent & more] (vec @clusters)]
-    (if cent
-      (recur 
-        ; j
-        (inc j)
-        ; never really want 'diff' anyway.  you want Uij to either be diff or eps
-        (assoc row-of-u j (euclid-dist-2d-or-eps cpoint cent))
-        ; sum
-        (+ sum (row-of-u j))
-        ; remainder of clusters
-        more)
-      ; done. alter U
-     
-      )))
-)
-
+; sample, right off the bat
+(def in-fuzzy 2.0)
+(def xmin 100)
+(def xmax 500)
+(def ymin 100)
+(def ymax 500)
+(def num-clusters 5)
+(def pts (gen-cluster-points 10 xmin xmax ymin ymax))
+(def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
+; init!
+(init-cmeans pts centroids in-fuzzy)
