@@ -166,8 +166,8 @@
 (defn recalc-cluster-index
   "Recalculate the cluster index of the given point"
   [cpoint i]
-  (loop [max -1.0 j (count @clusters) p nil]
-    (if (zero? j)
+  (loop [max -1.0 j (- (count @clusters) 1) p nil]
+    (if (> 0 j)
       nil
       (recur 
         (if (< max (val-colrow-of-vec j i (count @clusters) @U))
@@ -175,10 +175,11 @@
           max)
         (dec j)
         ; side-effect, update the point's cluster index
-        nil
-        ;(if (== max 0.5)
-        ;  (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
-        ;  (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j)))))
+        (if (== max 0.5)
+          (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
+          ;(println "fuct " max)
+          (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j)))))
+          ;(println "max " max))
         ))))
 
 (defn init-cmeans
@@ -236,3 +237,8 @@
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
+; print cluster indices
+(defn print-indices
+  []
+  (doseq [i (range (count @data-points))]
+    (println "point " i " cluster-index " (:cluster-index (@data-points i)))))
