@@ -164,23 +164,20 @@
     ))
 
 (defn recalc-cluster-index
-  "Recalculate the cluster index of the given point"
+  "With an initialized U matrix, update the cluster index of the given point"
   [cpoint i]
-  (loop [max -1.0 j (- (count @clusters) 1) p nil]
-    (if (> 0 j)
-      nil
-      (recur 
-        (if (< max (val-colrow-of-vec j i (count @clusters) @U))
-          (val-colrow-of-vec j i (count @clusters) @U)
-          max)
-        (dec j)
-        ; side-effect, update the point's cluster index
-        (if (== max 0.5)
-          (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
-          ;(println "fuct " max)
-          (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j)))))
-          ;(println "max " max))
-        ))))
+  (let [max (ref -1)]
+    (doseq [j (range (count @clusters))]
+      (if (< @max (val-colrow-of-vec j i (count @clusters) @U))
+        ; do two things: set max to Uij and update cluster index
+        (do
+          ; alter max
+          (dosync (ref-set max (val-colrow-of-vec j i (count @clusters) @U)))
+          ; update cluster index for the point
+          (if (== @max 0.5)
+            (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
+            (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j))))))
+        nil))))
 
 (defn init-cmeans
   "Init the algorithm with a list of cluster-points, a list of cluster-points
@@ -203,13 +200,22 @@
   ; recalculate cluster indices
   (doseq [i (range (count @data-points))]
     (recalc-cluster-index (@data-points i) i))
-  
   )
 ;------------------------------------------------------------------------------
 ; Client code
 ;------------------------------------------------------------------------------
+; print cluster points
+(defn print-points
+  []
+  (doseq [i (range (count @data-points))]
+    (println "point" i "cluster-index" (:cluster-index (@data-points i)) "location:" (:coords (@data-points i)))))
 
-; tested
+(defn print-clusters
+  []
+  (doseq [i (range (count @clusters))]
+    (println "cluster" i "location: " (:coords (@clusters i)))))
+
+; Generate random points 
 (defn gen-cluster-points
   "Return a vector of n cluster points with random coordinate values
    within the given range"
@@ -237,8 +243,5 @@
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
-; print cluster indices
-(defn print-indices
-  []
-  (doseq [i (range (count @data-points))]
-    (println "point " i " cluster-index " (:cluster-index (@data-points i)))))
+(print-points)
+(print-clusters)
