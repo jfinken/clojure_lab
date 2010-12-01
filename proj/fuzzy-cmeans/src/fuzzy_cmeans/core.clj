@@ -32,48 +32,6 @@
 ; (assoc [1 2 3] 3 45)
 
 ;------------------------------------------------------------------------------
-; Cluster Point definition (map)
-; - vector of type double of size N for the N dimensional data
-; - cluster index, double (fuzzy)
-;------------------------------------------------------------------------------
-;(def cluster-point {:coords [] :cluster-index -1}) 
-;; - or -
-
-; methods for the old cluster-point as a struct map
-(comment 
-	(defstruct cluster-point :coords :cluster-index)
-	(def coords (accessor cluster-point :coords))
-	(def get-index (accessor cluster-point :cluster-index))
-	(defn coords-at
-	  "Given an instance of cluster-point and an index, 
-	  return the value of :coords of the cluster-point at the index."
-	  [pt index]
-	  ((coords pt) index))
-	(defn dimension
-	  "Dimensions of the cluster-point data"
-	  [point]
-	  (count (coords point)))
-	(defn get-cluster-index
-	  "Given an instance of cluster-point, return its current
-	  cluster index"
-	  [point]
-	  (get-index point))
-	(defn set-cluster-index
-	  "Given an instance of cluster-point, set or replace the cluster-index"
-	  [point val]
-	  (assoc point :cluster-index val))
-	
-	;; for example 
-	(def pt (struct-map cluster-point :coords [238 125] :cluster-index -1))
-	(defn build-point
-	  "Builds a cluster-point given its dimensional data"
-	  [coord-data]
-	  (struct-map cluster-point :coords coord-data :cluster-index -1))
-	(def pt (build-point [37 456 69]))
-)
-
-
-;------------------------------------------------------------------------------
 ; ClusterPoint definition using datatypes and protocols 
 ; - to get the cluster-index for example: (:cluster-index my-point)
 ; - to update it: (assoc pts 0 (assoc (pts 0) :cluster-index 0.12345))
@@ -94,6 +52,11 @@
   [cpoint val]
   (assoc cpoint :cluster-index val))
 
+(defn update-coord
+  "Returns a new ClusterPoint with coordinate at k updated to val"
+  [point k val]
+  (assoc point :coords (assoc (:coords point) k val)))
+
 ; Helper fns for the U matrix
 (defn val-colrow-of-vec
   [col row num-cols vec]
@@ -105,10 +68,8 @@
     (ref-set ref-vec 
       (assoc @ref-vec (+ col (* num-cols row)) value))))
 
-
 ;------------------------------------------------------------------------------
-; init fuzzy c-means
-; - going to need global refs for points, clusters, fuzzy and the U matrix
+; initialization routines 
 ;------------------------------------------------------------------------------
 (def data-points (ref []))
 (def clusters (ref []))
@@ -202,6 +163,78 @@
     (recalc-cluster-index (@data-points i) i))
   )
 ;------------------------------------------------------------------------------
+; algorithm routines
+;------------------------------------------------------------------------------
+(defn euler-distance
+  "Return the distance between the point and cluster centroid"
+  [point centroid]
+  (loop [sum 0.0 i 0]
+    (if (> i (- (dimension point) 1))
+      (Math/sqrt sum)
+      (recur 
+        (+ sum (Math/pow (- ((:coords point) i) ((:coords centroid) i)) 2))
+        (inc i)))))
+
+(defn summed-cluster-distance
+  "Helper routine for calculate-objective-function"
+  [cpoint i]
+  (loop [sum 0.0 j 0]
+    (if (> j (- (count @clusters) 1))
+      sum
+      (recur
+        (+ sum (* (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy)
+                  (Math/pow (euler-distance cpoint (@clusters j)) 2)))
+        (inc j)))))
+
+(defn calculate-objective-function
+  "Each iteration is based on minimizing this function.  The function represents
+   the distance from any given data point to a cluster center weighted by that 
+   data point's membership grade (U matrix)"
+  []
+  (loop [jk 0.0 i 0]
+    (if (> i (- (count @data-points) 1))
+      jk
+      (recur
+        (+ jk (summed-cluster-distance (@data-points i) i))
+        (inc i)))))
+
+(defn calc-cluster-center-numer
+   [centroid j]
+   (let [uC (ref [])]
+    (loop [uu 0 side-effect nil i 0]
+      (if (> i (- (count @data-points) 1))
+        uC 
+        (recur
+          ; seems sketchy: updating uu... 
+          (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy)
+          ; and using it in the very next form
+          (doseq [k (range (dimension centroid))]
+            (dosync (ref-set uC (assoc @uC k (* uu ((:coords centroid) k))))))
+          (inc i))))))
+
+(defn calc-cluster-center-denom
+  [centroid j]
+  (loop [l 0 i 0]
+    (if (> i (- (count @data-points) 1))
+      l
+      (recur
+        (+ l (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy))
+        (inc i)))))
+(defn calculate-cluster-centers
+  "Do just that, calculate new cluster centers"
+  []
+  (doseq [j (range (count @clusters))]
+    (let [centroid (@clusters j)]
+      (let [uC (calc-cluster-center-numer centroid j)
+            l  (calc-cluster-center-denom centroid j)]
+        (doseq [k (range (dimension centroid))]
+          ; update the coordinates for the centroid
+          (dosync (ref-set clusters (assoc @clusters j (update-coord centroid k
+                                                        (/ (uC k) l)))))
+          )))))
+          
+      
+;------------------------------------------------------------------------------
 ; Client code
 ;------------------------------------------------------------------------------
 ; print cluster points
@@ -226,7 +259,7 @@
       (recur 
         (dec m)
         (conj ret
-               (ClusterPoint. 
+                (ClusterPoint. 
                  (vector 
                    ( + (mod (rand Integer/MAX_VALUE) (inc (- xmax xmin))) xmin) ;x
                    ( + (mod (rand Integer/MAX_VALUE) (inc (- ymax ymin))) ymin));y
