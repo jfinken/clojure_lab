@@ -77,6 +77,11 @@
 (def fuzzy (ref -1))
 (def eps (Math/pow 10 -5)) ; algorithm precision
 
+(defn U-at
+  "Value of the U matrix at i j"
+  [row col]
+  (val-colrow-of-vec col row (count@clusters) @U))
+
 ; sum a vector
 (defn sum-vec
   "Simply sum the contents of a vec"
@@ -110,7 +115,7 @@
      (alter-colrow-of-ref-vec j i
        (count @clusters) U 
        ; value to stuff into U
-       (/ 1.0 (Math/pow (/ (val-colrow-of-vec j i (count @clusters) @U) curr-sum) (/ 2.0 (- @fuzzy 1.0)))))
+       (/ 1.0 (Math/pow (/ (U-at i j) curr-sum) (/ 2.0 (- @fuzzy 1.0)))))
      )))
 
 (defn init-U-matrix-3
@@ -121,7 +126,7 @@
       (alter-colrow-of-ref-vec j i
         (count @clusters) U
         ; value to stuff into U
-        (/ (val-colrow-of-vec j i (count @clusters) @U) curr-sum)))
+        (/ (U-at i j) curr-sum)))
     ))
 
 (defn recalc-cluster-index
@@ -129,11 +134,11 @@
   [cpoint i]
   (let [max (ref -1)]
     (doseq [j (range (count @clusters))]
-      (if (< @max (val-colrow-of-vec j i (count @clusters) @U))
+      (if (< @max (U-at i j))
         ; do two things: set max to Uij and update cluster index
         (do
           ; alter max
-          (dosync (ref-set max (val-colrow-of-vec j i (count @clusters) @U)))
+          (dosync (ref-set max (U-at i j)))
           ; update cluster index for the point
           (if (== @max 0.5)
             (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint 0.5))))
@@ -182,7 +187,7 @@
     (if (> j (- (count @clusters) 1))
       sum
       (recur
-        (+ sum (* (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy)
+        (+ sum (* (Math/pow (U-at i j) @fuzzy)
                   (Math/pow (euler-distance cpoint (@clusters j)) 2)))
         (inc j)))))
 
@@ -198,19 +203,17 @@
         (+ jk (summed-cluster-distance (@data-points i) i))
         (inc i)))))
 
+;------------------------------------------------------------------------------
+; Re-calculate cluster centers
+;------------------------------------------------------------------------------
 (defn calc-cluster-center-numer
-   [centroid j]
-   (let [uC (ref [])]
-    (loop [uu 0 side-effect nil i 0]
-      (if (> i (- (count @data-points) 1))
-        uC 
-        (recur
-          ; seems sketchy: updating uu... 
-          (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy)
-          ; and using it in the very next form
-          (doseq [k (range (dimension centroid))]
-            (dosync (ref-set uC (assoc @uC k (* uu ((:coords centroid) k))))))
-          (inc i))))))
+  [centroid j]
+  (let [uC (ref (vec (repeat (dimension centroid) 0)))]
+    (doseq [i (range (count @data-points))]
+      (let [uu (Math/pow (U-at i j) @fuzzy)]
+        (doseq [k (range (dimension centroid))]
+          (dosync (ref-set uC (assoc @uC k (+ (@uC k) (* uu ((:coords centroid) k)))))))))
+    uC))
 
 (defn calc-cluster-center-denom
   [centroid j]
@@ -218,8 +221,9 @@
     (if (> i (- (count @data-points) 1))
       l
       (recur
-        (+ l (Math/pow (val-colrow-of-vec j i (count @clusters) @U) @fuzzy))
+        (+ l (Math/pow (U-at i j) @fuzzy))
         (inc i)))))
+
 (defn calculate-cluster-centers
   "Do just that, calculate new cluster centers"
   []
@@ -233,11 +237,9 @@
                                                         (/ (uC k) l)))))
           )))))
           
-      
 ;------------------------------------------------------------------------------
-; Client code
+; Client and debug code
 ;------------------------------------------------------------------------------
-; print cluster points
 (defn print-points
   []
   (doseq [i (range (count @data-points))]
@@ -247,6 +249,13 @@
   []
   (doseq [i (range (count @clusters))]
     (println "cluster" i "location: " (:coords (@clusters i)))))
+
+(defn print-U-matrix
+  []
+  (doseq [i (range (count @data-points))]
+    (doseq [j (range (count @clusters))]
+      (println "i:"i "j:"j "Uij:" (U-at i j)))))
+
 
 ; Generate random points 
 (defn gen-cluster-points
@@ -267,12 +276,12 @@
 
 ; sample, right off the bat
 (def in-fuzzy 2.0)
-(def xmin 100)
-(def xmax 500)
-(def ymin 100)
-(def ymax 500)
-(def num-clusters 5)
-(def pts (gen-cluster-points 10 xmin xmax ymin ymax))
+(def xmin 1)
+(def xmax 10)
+(def ymin 1)
+(def ymax 10)
+(def num-clusters 2)
+(def pts (gen-cluster-points 2 xmin xmax ymin ymax))
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
