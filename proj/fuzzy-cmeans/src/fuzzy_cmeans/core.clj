@@ -145,6 +145,12 @@
             (dosync (ref-set data-points (assoc @data-points i (update-cluster-index cpoint j))))))
         nil))))
 
+(defn calculate-cluster-indices
+  []
+  (doseq [i (range (count @data-points))]
+    (recalc-cluster-index (@data-points i) i))
+  )
+
 (defn init-cmeans
   "Init the algorithm with a list of cluster-points, a list of cluster-points
   representing the initial number of clusters and their centroids, and an initial
@@ -164,11 +170,11 @@
     (init-U-matrix-3 (@data-points i) i))
   
   ; recalculate cluster indices
-  (doseq [i (range (count @data-points))]
-    (recalc-cluster-index (@data-points i) i))
+  (calculate-cluster-indices)
   )
+
 ;------------------------------------------------------------------------------
-; algorithm routines
+; Calculate objective function routines
 ;------------------------------------------------------------------------------
 (defn euler-distance
   "Return the distance between the point and cluster centroid"
@@ -238,6 +244,43 @@
           )))))
           
 ;------------------------------------------------------------------------------
+; Perform one step of the algorithm 
+;------------------------------------------------------------------------------
+(defn update
+  []
+  (doseq [c (range (count @clusters))]
+    (doseq [h (range (count @data-points))]
+      (let [t1 (euler-distance (@data-points h) (@clusters c))]
+        (let [top (if (> t1 1.0) t1 eps) sumTerms (ref 0.0)]
+          (doseq [ck (range (count @clusters))]
+            (let [dist1 (euler-distance (@data-points h) (@clusters ck))]
+              (let [dist (if (> dist1 1.0) dist1 eps)]
+                ; mutate sumTerms, as in sumTerms += blah
+                (dosync (ref-set sumTerms (+ @sumTerms
+                                             (Math/pow (/ top dist) (/ 2 (- @fuzzy 1)))))))))
+          ; now update the U matrix
+          (alter-colrow-of-ref-vec c h (count @clusters) U
+            ; value to stuff into U
+            (/ 1.0 @sumTerms))))))
+  ; re-calculate the cluster centroids
+  (calculate-cluster-centers))
+  
+;------------------------------------------------------------------------------
+; Run!
+;------------------------------------------------------------------------------
+(defn run
+  "Perform a complete run of fuzzy-cmeans until the desired accuracy is
+  achieved."
+  []
+  (doseq [i (range 5)]
+    (let [j (calculate-objective-function)]
+      (calculate-cluster-centers)
+      (update)
+      (let [jnext (calculate-objective-function)]
+        (println "iter" i "of fuzzy-cmeans! (j - jnext):" (Math/abs (- j jnext)))))))
+
+
+;------------------------------------------------------------------------------
 ; Client and debug code
 ;------------------------------------------------------------------------------
 (defn print-points
@@ -277,11 +320,11 @@
 ; sample, right off the bat
 (def in-fuzzy 2.0)
 (def xmin 1)
-(def xmax 10)
+(def xmax 1000)
 (def ymin 1)
-(def ymax 10)
-(def num-clusters 2)
-(def pts (gen-cluster-points 2 xmin xmax ymin ymax))
+(def ymax 1000)
+(def num-clusters 3)
+(def pts (gen-cluster-points 10 xmin xmax ymin ymax))
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
