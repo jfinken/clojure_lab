@@ -302,6 +302,7 @@
       (println "i:"i "j:"j "Uij:" (U-at i j)))))
 
 
+
 ; Generate random points 
 (defn gen-cluster-points
   "Return a vector of n cluster points with random coordinate values
@@ -325,8 +326,8 @@
 (def xmax 500)
 (def ymin 1)
 (def ymax 500)
-(def num-clusters 3)
-(def pts (gen-cluster-points 10 xmin xmax ymin ymax))
+(def num-clusters 5)
+(def pts (gen-cluster-points 1000 xmin xmax ymin ymax))
 ;(def pts (get-test-data-points))
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
 ;(def centroids (get-test-clusters))
@@ -334,6 +335,42 @@
 (init-cmeans pts centroids in-fuzzy)
 (print-points)
 (print-clusters)
+
+;------------------------------------------------------------------------------
+; Incanter viz
+;------------------------------------------------------------------------------
+(defn third
+  [more]
+  (first (next (next more))))
+
+(defn dump-points-for-incanter
+  []
+    (loop [i 0 ret (list)]
+      (if (> i (- (count @data-points) 1))
+        ret
+        (recur
+          (inc i)
+          (cons (conj (:coords (@data-points i))
+                      (:cluster-index (@data-points i)))
+                ret)))))
+
+(defn dump-point-cluster-indices
+  []
+  (loop [i 0 ret (vector)]
+    (if (> i (- (count @data-points) 1))
+      ret
+        (recur
+          (inc i)
+          (conj ret (:cluster-index (@data-points i)))))))
+
+(def data (dump-points-for-incanter))
+(def xs (map first data))
+(def ys (map second data))
+(def cs (map third data))
+;(def cs (dump-point-cluster-indices))
+
+; scatter-plot the data points
+(view (scatter-plot xs ys :group-by cs))
 
 (comment
 (defn get-test-data-points
