@@ -1,4 +1,5 @@
-(ns fuzzy-cmeans.core)
+(ns fuzzy-cmeans.core
+  (:use [incanter core stats charts]))
 
 ;------------------------------------------------------------------------------
 ; generating/working with a 2D array
@@ -75,7 +76,8 @@
 (def clusters (ref []))
 (def U (ref []))
 (def fuzzy (ref -1))
-(def eps (Math/pow 10 -5)) ; algorithm precision
+;(def eps (Math/pow 10 -5)) ; algorithm precision
+(def eps 0.0001)
 
 (defn U-at
   "Value of the U matrix at i j"
@@ -272,7 +274,7 @@
   "Perform a complete run of fuzzy-cmeans until the desired accuracy is
   achieved."
   []
-  (doseq [i (range 5)]
+  (doseq [i (range 1)]
     (let [j (calculate-objective-function)]
       (calculate-cluster-centers)
       (update)
@@ -320,13 +322,78 @@
 ; sample, right off the bat
 (def in-fuzzy 2.0)
 (def xmin 1)
-(def xmax 1000)
+(def xmax 500)
 (def ymin 1)
-(def ymax 1000)
+(def ymax 500)
 (def num-clusters 3)
 (def pts (gen-cluster-points 10 xmin xmax ymin ymax))
+;(def pts (get-test-data-points))
 (def centroids (gen-cluster-points num-clusters xmin xmax ymin ymax))
+;(def centroids (get-test-clusters))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
 (print-points)
 (print-clusters)
+
+(comment
+(defn get-test-data-points
+  []
+  (conj (vector)
+          (ClusterPoint. (vector 253, 482) -1)
+          (ClusterPoint. (vector 123, 420) -1)
+          (ClusterPoint. (vector 178, 99) -1)
+          (ClusterPoint. (vector 346, 475) -1)
+           (ClusterPoint. (vector 98, 495) -1)
+           (ClusterPoint. (vector 483, 69) -1)
+           (ClusterPoint. (vector 408, 395) -1)
+           (ClusterPoint. (vector 32, 397) -1)
+           (ClusterPoint. (vector 448, 327) -1)
+           (ClusterPoint. (vector 295, 480) -1)
+           (ClusterPoint. (vector 2, 169) -1)
+           (ClusterPoint. (vector 414, 365) -1)
+           (ClusterPoint. (vector 13, 251) -1)
+           (ClusterPoint. (vector 77, 31) -1)
+           (ClusterPoint. (vector 485, 343) -1)
+           (ClusterPoint. (vector 469, 203) -1)
+           (ClusterPoint. (vector 375, 212) -1)
+           (ClusterPoint. (vector 304, 153) -1)
+           (ClusterPoint. (vector 369, 57) -1)
+           (ClusterPoint. (vector 58, 398) -1)
+           (ClusterPoint. (vector 387, 194) -1)
+           (ClusterPoint. (vector 157, 72) -1)
+           (ClusterPoint. (vector 483, 393) -1)
+           (ClusterPoint. (vector 63, 68) -1)
+           (ClusterPoint. (vector 188, 377) -1)
+           (ClusterPoint. (vector 91, 251) -1)
+           (ClusterPoint. (vector 444, 312) -1)
+           (ClusterPoint. (vector 457, 84) -1)
+           (ClusterPoint. (vector 68, 257) -1)
+           (ClusterPoint. (vector 408, 427) -1)
+           (ClusterPoint. (vector 23, 315) -1)
+           (ClusterPoint. (vector 490, 254) -1)
+           (ClusterPoint. (vector 27, 280) -1)
+           (ClusterPoint. (vector 193, 196) -1)
+           (ClusterPoint. (vector 92, 378) -1)
+           (ClusterPoint. (vector 29, 391) -1)
+           (ClusterPoint. (vector 269, 397) -1)
+           (ClusterPoint. (vector 93, 308) -1)
+           (ClusterPoint. (vector 12, 342) -1)
+           (ClusterPoint. (vector 381, 119) -1)
+           (ClusterPoint. (vector 188, 9) -1)
+           (ClusterPoint. (vector 342, 109) -1)
+           (ClusterPoint. (vector 253, 218) -1)
+           (ClusterPoint. (vector 258, 64) -1)
+           (ClusterPoint. (vector 255, 220) -1)
+           (ClusterPoint. (vector 85, 113) -1)
+           (ClusterPoint. (vector 149, 131) -1)
+           (ClusterPoint. (vector 376, 73) -1)
+           (ClusterPoint. (vector 203, 403) -1)
+           (ClusterPoint. (vector 45, 203) -1)))
+
+(defn get-test-clusters
+  []
+  (conj (vector) 
+        (ClusterPoint. (vector 253, 482) -1)
+        (ClusterPoint. (vector 123, 420) -1)
+        (ClusterPoint. (vector 178, 99) -1)))
+  )
