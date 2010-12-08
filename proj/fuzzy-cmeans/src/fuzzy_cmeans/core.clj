@@ -1,5 +1,4 @@
-(ns fuzzy-cmeans.core
-  (:use [incanter core stats charts]))
+(ns fuzzy-cmeans.core)
 
 ;------------------------------------------------------------------------------
 ; generating/working with a 2D array
@@ -48,6 +47,12 @@
   (coords-at [this indx] (coords indx))
   (dimension [this] (count coords)))
 
+(defn make-cluster-point
+  "Factory function returning a ClusterPoint object.  defrecord
+  defines true Java classes, thus this function to prevent :import"
+  [coords cluster-index]
+  (ClusterPoint. coords cluster-index))
+
 (defn update-cluster-index
   "Return a new ClusterPoint with the cluster-index assigned to val"
   [cpoint val]
@@ -79,10 +84,23 @@
 ;(def eps (Math/pow 10 -5)) ; algorithm precision
 (def eps 0.0001)
 
+; accessor routines, an iterface
+(defn get-data-points
+  "Returns the vector of ClusterPoints currently being operated on
+  by fuzzy-cmeans"
+  []
+  @data-points)
+
+(defn get-cluster-centroids
+  "Returns the vector of cluster centroids currently being used in
+  fuzzy-cmeans"
+  []
+  @clusters)
+
 (defn U-at
   "Value of the U matrix at i j"
   [row col]
-  (val-colrow-of-vec col row (count@clusters) @U))
+  (val-colrow-of-vec col row (count @clusters) @U))
 
 ; sum a vector
 (defn sum-vec
@@ -274,7 +292,7 @@
   "Perform a complete run of fuzzy-cmeans until the desired accuracy is
   achieved."
   []
-  (doseq [i (range 1)]
+  (doseq [i (range 5)]
     (let [j (calculate-objective-function)]
       (calculate-cluster-centers)
       (update)
@@ -301,8 +319,7 @@
     (doseq [j (range (count @clusters))]
       (println "i:"i "j:"j "Uij:" (U-at i j)))))
 
-
-
+(comment
 ; Generate random points 
 (defn gen-cluster-points
   "Return a vector of n cluster points with random coordinate values
@@ -333,9 +350,10 @@
 ;(def centroids (get-test-clusters))
 ; init!
 (init-cmeans pts centroids in-fuzzy)
-(print-points)
+;(print-points)
 (print-clusters)
-
+; iterate
+(run)
 ;------------------------------------------------------------------------------
 ; Incanter viz
 ;------------------------------------------------------------------------------
@@ -354,6 +372,17 @@
                       (:cluster-index (@data-points i)))
                 ret)))))
 
+(defn dump-clusters-for-incanter
+  []
+    (loop [i 0 ret (list)]
+      (if (> i (- (count @clusters) 1))
+        ret
+        (recur
+          (inc i)
+          (cons (conj (:coords (@clusters i))
+                      (:cluster-index (@clusters i)))
+                ret)))))
+
 (defn dump-point-cluster-indices
   []
   (loop [i 0 ret (vector)]
@@ -364,13 +393,22 @@
           (conj ret (:cluster-index (@data-points i)))))))
 
 (def data (dump-points-for-incanter))
+(def center-data (dump-clusters-for-incanter))
 (def xs (map first data))
 (def ys (map second data))
 (def cs (map third data))
 ;(def cs (dump-point-cluster-indices))
+(def center_xs (map first center-data))
+(def center_ys (map second center-data))
 
 ; scatter-plot the data points
-(view (scatter-plot xs ys :group-by cs))
+;(def cx (vector ((:coords (@clusters 0)) 0)))
+;(def cy (vector ((:coords (@clusters 0)) 1)))
+(def plot (doto (scatter-plot xs ys :group-by cs)
+            (add-points center_xs center_ys)))
+(view plot)
+
+)
 
 (comment
 (defn get-test-data-points
