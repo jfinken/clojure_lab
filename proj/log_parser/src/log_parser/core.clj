@@ -1,7 +1,10 @@
 (ns log_parser.core
   (:require [clojure.string :as string])
   (:import [java.io File])
-  (:require [clojure.contrib.duck-streams :as duck]))
+  (:require [clojure.contrib.duck-streams :as duck])
+  (:use incanter.core)
+  (:use incanter.charts)
+  )
 
 (defn get-ip-addr
   "If it exists, returns the string IP address in the given string"
@@ -11,7 +14,7 @@
     #"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
    in-str)))
 
-(defn map-get-all-ip
+(defn get-all-ip
   "Returns a collection of all found IP addresses in an ASCII file."
   [filename]
   (map 
@@ -41,7 +44,6 @@
       ret)))
 
 
-(def log-dir "/Users/josh/projects/clojure_lab/proj/log_parser/data")
 (defn get-all-ip-freqs
   "Return a map of IP addr frequencies for each parsed file."
   [log-dir]
@@ -59,25 +61,52 @@
         (recur (merge-with + ret mp) (next maps))
         ret)))
 
-
 (defn max-of-two-vecs [fst sec]
   (if (> (last fst) (last sec)) fst sec))
 
+;------------------------------------------------------------------------------
 ; works:
-(def v (seq (get-all-ip-freqs log-dir)))
-(reduce max-of-two-vecs v)
+;------------------------------------------------------------------------------
+(def log-dir "/Users/josh/projects/clojure_lab/proj/log_parser/data")
+(def records (seq (get-all-ip-freqs-m log-dir)))
+; records is now something like:
+; ([nil 27] ["10.63.125.69" 2] ["186.213.21.148" 12] ["189.158.49.211" 8])
 
-; buggy
-(defn max-val-2
-  [& in-map]
-  ; make it a seq of 2-elem vectors
-  (let [keyvals (seq in-map)
-        m (reduce max-of-two-vecs keyvals)])
-    m)
+; to get the max key-val record
+;(reduce max-of-two-vecs records)
+; remove nil keys - incanter isn't down with nil keys
+(def ips 
+  (apply merge (for [[k v] records :when (not (nil? k))] {k v})))
+; ips is now a histogram map with no nil keys like:
+; {"195.228.140.139" 6, "63.225.17.34" 39, "10.63.125.69" 2, "186.213.21.148" 12}
+
+; sort by values descending
+(def ips2
+  (into 
+    (sorted-map-by 
+      (fn [key1 key2] (<= (ips key2) (ips key1))))
+    ips))
+
+; get the ip-addrs with the most 
+;(def ips2 
+;  (apply merge (for [[k v] ips :when (> v 5000)] {k v})))
+
+;------------------------------------------------------------------------------
+; incanter hist
+;------------------------------------------------------------------------------
+(view (bar-chart (keys ips2) (vals ips2)))
+; get the top n ip addresses by hits
+(def max-hits 7)
+(view (bar-chart (take max-hits (keys ips2)) (take max-hits (vals ips2))
+                 :title "IP Address/Requests"
+                 :x-label "IP Address"
+                 :y-label "Requests"))
 
 
 
-;---------------
+;------------------------------------------------------------------------------
+; prototype code below...
+;------------------------------------------------------------------------------
 ; for example
 (walkr log-dir #".*\.access.log")
 
