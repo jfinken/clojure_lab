@@ -2,10 +2,87 @@
   (:require [clojure.string :as string])
   (:import [java.io File])
   (:require [clojure.contrib.duck-streams :as duck])
+  (:require [clojure.contrib.http.agent :as http])
   (:use incanter.core)
   (:use incanter.charts)
   )
 
+;------------------------------------------------------------------------------
+; utilities
+;------------------------------------------------------------------------------
+(defn re-pos 
+  "Return the positions and matches of a regex in the string"
+  [re s]
+  (loop [m (re-matcher re s)
+         res {}]
+    (if (.find m)
+      (recur m (assoc res (.start m) (.group m)))
+      res)))
+
+(defn walkr
+  "Given a directory, return a sequence of all files whose filenames
+  match pattern"
+  [dirpath pattern]
+  (loop 
+    [ret (vector)
+     files (file-seq (duck/file-str dirpath))]
+      (if-let [file (first files)]
+        (recur (if (re-matches pattern (.getName file))
+                 (conj ret file)
+                 ret)
+               (next files))
+      ret)))
+;------------------------------------------------------------------------------
+; api call processing  
+;------------------------------------------------------------------------------
+(defn get-api-call
+  "If it exists, returns the string api method in the given string"
+  [in-str]
+  (first
+    (re-seq
+      #"\bget-[A-Za-z]+-*[A-Za-z]*-*[A-Za-z]*\b"
+    in-str)))
+
+(defn get-all-api-calls
+  "Returns a collection of all found api-calls in an ASCII file."
+  [filename]
+  (map 
+    get-api-call
+    (duck/read-lines filename)))
+
+(defn get-api-call-freqs
+  [filename]
+  (frequencies 
+    (get-all-api-calls filename)))
+
+(defn get-all-api-call-freqs-m
+  "Merges api-call frequency maps from each parsed file."
+  [log-dir]
+    (loop
+      [ret {} 
+       maps (map get-api-call-freqs 
+              (walkr log-dir #".*\.access.log"))]
+      (if-let [mp (first maps)]
+        (recur (merge-with + ret mp) (next maps))
+        ret)))
+
+
+
+(def temp "INFO [com.bitgirder.servlet.ServiceServlet]: 82.216.88.111, Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1) ; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729), zgc6ypp4bz5drttcc524phnq [Sun, 27 Mar 2011 17:37:32 +0000] get-plane-pano, 73 ms")
+(subs temp (first (keys (re-pos #"\bget-\b" temp))))
+;------------------------------------------------------------------------------
+; get the api-key
+;------------------------------------------------------------------------------
+(defn get-api-key
+  "If it exists, returns the 24-char api-key string in the given string"
+  [in-str]
+  (first
+    (re-seq
+      #"\b[A-Za-z0-9]{24}\b"
+      in-str)))
+;------------------------------------------------------------------------------
+; IP address processing
+;------------------------------------------------------------------------------
 (defn get-ip-addr
   "If it exists, returns the string IP address in the given string"
   [in-str]
@@ -28,20 +105,6 @@
 
 
 ;(def files (file-seq (duck/file-str log-dir)))
-
-(defn walkr
-  "Given a directory, return a sequence of all files whose filenames
-  match pattern"
-  [dirpath pattern]
-  (loop 
-    [ret (vector)
-     files (file-seq (duck/file-str dirpath))]
-      (if-let [file (first files)]
-        (recur (if (re-matches pattern (.getName file))
-                 (conj ret file)
-                 ret)
-               (next files))
-      ret)))
 
 
 (defn get-all-ip-freqs
@@ -96,14 +159,36 @@
 ;------------------------------------------------------------------------------
 (view (bar-chart (keys ips2) (vals ips2)))
 ; get the top n ip addresses by hits
-(def max-hits 7)
-(view (bar-chart (take max-hits (keys ips2)) (take max-hits (vals ips2))
-                 :title "IP Address/Requests"
+(def max-hits 5)
+(def locations
+    (map get-location (take max-hits (keys ips2))))
+
+(view (bar-chart (take max-hits (keys ips2))
+                  (take max-hits (vals ips2))
+                 :title "IP Addresss/Requests"
                  :x-label "IP Address"
                  :y-label "Requests"))
 
 
-
+; post to get the lat, lng of the ip...bit of a hack
+(defn get-location
+  [ip-addr-str]
+  (get-google-lat-lng
+    (http/string (http/http-agent "http://www.ip-address.org/lookup/ip-locator.php" 
+                              :method "POST" 
+                              :body (str "ip=" ip-addr-str)))))
+(defn get-google-lat-lng
+  "If it exists, returns the string lat, lng within the given string.
+  Mega-hack because it is completely tailored to a specific response."
+  [in-str]
+  (first
+    (string/split
+      (second
+        (string/split
+          in-str
+          #"\bnew google.maps.LatLng\(\b"
+          ))
+      #"\)")))
 ;------------------------------------------------------------------------------
 ; prototype code below...
 ;------------------------------------------------------------------------------
