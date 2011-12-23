@@ -10,6 +10,14 @@
 ;------------------------------------------------------------------------------
 ; utilities
 ;------------------------------------------------------------------------------
+(defn get-res
+  [in-str pattern]
+  "Return a string from in-str that matches the re pattern.  NOTE: cannot be used
+  with 'map' because f applied to the map takes number-of-colls arguments."
+  (first
+    (re-seq
+      pattern
+    in-str)))
 (defn re-pos 
   "Return the positions and matches of a regex in the string"
   [re s]
@@ -67,9 +75,18 @@
         ret)))
 
 
-
 (def temp "INFO [com.bitgirder.servlet.ServiceServlet]: 82.216.88.111, Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1) ; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729), zgc6ypp4bz5drttcc524phnq [Sun, 27 Mar 2011 17:37:32 +0000] get-plane-pano, 73 ms")
-(subs temp (first (keys (re-pos #"\bget-\b" temp))))
+;------------------------------------------------------------------------------
+; this will parse out the duration of the api call from the line. 
+; TO-DO: generate a map with averaged times, i.e {"get-panoramas" 13}
+;------------------------------------------------------------------------------
+(assoc {}
+  (get-res (subs temp (first (keys (re-pos #"\bget-\b" temp))))
+    #"\bget-[A-Za-z]+-*[A-Za-z]*-*[A-Za-z]*\b")
+  (Integer/parseInt
+    (get-res (subs temp (first (keys (re-pos #"\bget-\b" temp))))
+         #"\b[0-9]+\b")))
+
 ;------------------------------------------------------------------------------
 ; get the api-key
 ;------------------------------------------------------------------------------
@@ -103,10 +120,6 @@
   (frequencies 
     (get-all-ip filename)))
 
-
-;(def files (file-seq (duck/file-str log-dir)))
-
-
 (defn get-all-ip-freqs
   "Return a map of IP addr frequencies for each parsed file."
   [log-dir]
@@ -128,16 +141,38 @@
   (if (> (last fst) (last sec)) fst sec))
 
 ;------------------------------------------------------------------------------
-; works:
+; essentially, main:
 ;------------------------------------------------------------------------------
 (def log-dir "/Users/josh/projects/clojure_lab/proj/log_parser/data")
-(def records (seq (get-all-ip-freqs-m log-dir)))
+
+(defn get-all-calls 
+  "Returns a frequency map, with nil removed, of all api-calls
+   parsed from any access log files within the given directory."
+  [dir]
+  (apply merge 
+    (for [[k v] 
+        (seq (get-all-api-call-freqs-m dir))
+        :when (not (nil? k))] {k v})))
+
+; if you want them sorted
+(def sorted-calls 
+  (into 
+    (sorted-map-by 
+      (fn [key1 key2] (<= (calls key2) (calls key1))))
+    calls))
+
+(def calls (get-all-calls log-dir))
+(view (pie-chart (keys calls) (vals calls)
+       :title "api calls"
+       :legend true))
+
 ; records is now something like:
 ; ([nil 27] ["10.63.125.69" 2] ["186.213.21.148" 12] ["189.158.49.211" 8])
 
 ; to get the max key-val record
 ;(reduce max-of-two-vecs records)
 ; remove nil keys - incanter isn't down with nil keys
+(def records (seq (get-all-ip-freqs-m log-dir)))
 (def ips 
   (apply merge (for [[k v] records :when (not (nil? k))] {k v})))
 ; ips is now a histogram map with no nil keys like:
