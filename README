@@ -3,27 +3,26 @@ My clojure learning lab...
 Setting up a Vim and Screen based dev environment for
 Clojure.
 
-1. Get clojure zips from clojure.org/downloads
-2. VimClojure:
-    - download VimClojure
-    - I like VimClojure for rainbow parens and paren matching
-    - I followed http://writequit.org/blog/?p=386 to put VimClojure stuff in .vim/
-    b/c I couldn't ng to work and sending code to screen via slime seems just as
-    good
-
+1. Get clojure zips from clojure.org/downloads.  Meh, lein will do this.
+2. VimClojure (for paren matching and rainbow parens, not NailGun)
+    - download VimClojure: http://www.vim.org/scripts/script.php?script_id=2501
+    - unzip it in your ~/.vim/ dir 
+    
+    - http://writequit.org/blog/?p=386 for sending code to screen via slime 
     - add to .vimrc:
 
-    " clojure stuff
+    " for clojure
     set nocompatible
     filetype plugin indent on
-    " Settings for VimClojure
-    let g:clj_highlight_builtins=1      " Highlight Clojure's builtins
-    let g:clj_paren_rainbow=1           " Rainbow parentheses'!
-    " works with slime.vim to send the entire buffer to the repl
+    let vimclojure#HighlightBuiltins = 1
+    let vimclojure#ParenRainbow = 1
     nmap <C-m> ggVG<C-c><C-c>
 
-3. Get slime.vim to integrate with the repl    - http://s3.amazonaws.com/mps/slime.vim
+3. Get slime.vim to integrate with the repl
+    - http://s3.amazonaws.com/mps/slime.vim
     - copy and paste and put in ~/.vim/plugin
+
+DONE.
 
 4. Enhancing Clojure REPL with rlwrap:
     - http://en.wikibooks.org/wiki/Clojure_Programming/Getting_Started#Enhancing_Clojure_REP

@@ -4,6 +4,7 @@
   (:require [clojure.contrib.duck-streams :as duck])
   (:use incanter.core)
   (:use incanter.charts)
+  (:require [clojure.contrib.http.agent :as http])
   )
 
 (defn get-ip-addr
@@ -102,8 +103,17 @@
                  :x-label "IP Address"
                  :y-label "Requests"))
 
+;------------------------------------------------------------------------------
+; to post to http://www.ipgp.net with body ip=69.181.46.108&mode=view
+;------------------------------------------------------------------------------
+(http/string (http/http-agent "http://www.ipgp.net"
+      :method "POST" :body "ip=69.181.46.108&mode=view"
+      :headers {:Content-Type "application/x-www-form-urlencoded",
+                 :Referer "http://www.ipgp.net"}
+))
 
-
+(http/string (http/http-agent "http://www.google.com"
+    :method "GET"))
 ;------------------------------------------------------------------------------
 ; prototype code below...
 ;------------------------------------------------------------------------------
