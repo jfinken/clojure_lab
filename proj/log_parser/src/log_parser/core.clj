@@ -8,6 +8,11 @@
   (:require [clojure.contrib.http.agent :as http])
   )
 
+(println (str "Running log parser..."))
+
+; main directory containing em server log files
+(def log-dir "/Users/josh/projects/clojure_lab/proj/log_parser/data")
+
 ;------------------------------------------------------------------------------
 ; utilities
 ;------------------------------------------------------------------------------
@@ -87,7 +92,7 @@
 ;------------------------------------------------------------------------------
 (defn get-api-call-time
   "Given a line from the server log (string), return a map of the
-  call and it response processing time in ms."
+  call and its response processing time in ms."
   [line]
     (let [call (first (keys (re-pos #"\bget-\b" line)))]
     ; could be nil if the regexp is not found
@@ -116,6 +121,8 @@
     get-api-call-time
     (duck/read-lines filename)))
 
+(comment
+; unused
 (defn merge-all-api-times
   "Merges api-call time maps from each parsed file."
   [log-dir]
@@ -126,8 +133,8 @@
       (if-let [mp (first maps)]
         (recur (merge-with merge-as-avg ret mp) (next maps))
         ret)))
+)
 
-; Generate a massive list of maps where key is the api call, val is time
 ; Requires a merge func to do anything with 'em  
 (def maps (filter not-empty (flatten 
             (map 
@@ -135,11 +142,19 @@
               (walkr log-dir #".*\.access.log")))))
 
 ; Merging down the above list of maps, calculating averages
-(def call-avgs (reduce #(merge-with merge-as-avg %1 %2) maps))
-; view 
-(view (pie-chart (keys call-avgs) (vals call-avgs)
-       :title "api call avgs (ms)"
-       :legend true))
+;(def call-avgs (reduce #(merge-with merge-as-avg %1 %2) maps))
+
+; Generate a massive list of maps where key is the api call, val is time
+; replaces the above defs
+(defn gen-call-avgs
+  "Given a dir of access.log files, generate a map of api-call:avg response times"
+  [log-dir]
+  (reduce #(merge-with merge-as-avg %1 %2) 
+          (filter not-empty (flatten 
+            (map 
+              get-all-api-times
+              (walkr log-dir #".*\.access.log"))))))
+
 ;------------------------------------------------------------------------------
 ; get the api-key
 ;------------------------------------------------------------------------------
@@ -197,7 +212,6 @@
 ;------------------------------------------------------------------------------
 ; essentially, main:
 ;------------------------------------------------------------------------------
-(def log-dir "/Users/josh/projects/clojure_lab/proj/log_parser/data")
 
 (defn get-all-calls 
   "Returns a frequency map, with nil removed, of all api-calls
@@ -216,9 +230,6 @@
       (fn [key1 key2] (<= (calls key2) (calls key1))))
     calls))
 
-(view (pie-chart (keys calls) (vals calls)
-       :title "api calls"
-       :legend true))
 
 ; records is now something like:
 ; ([nil 27] ["10.63.125.69" 2] ["186.213.21.148" 12] ["189.158.49.211" 8])
@@ -244,27 +255,35 @@
 ;  (apply merge (for [[k v] ips :when (> v 5000)] {k v})))
 
 ;------------------------------------------------------------------------------
-; incanter hist
+; incanter visualizations:
 ;------------------------------------------------------------------------------
-(view (bar-chart (keys ips2) (vals ips2)))
 ; get the top n ip addresses by hits
 (def max-hits 5)
+;(view (bar-chart (keys ips2) (vals ips2)))
 
-(view (bar-chart (take max-hits (keys ips2))
+; bar chart of the IP addresses making the most api requests
+(defn show-ip-addrs
+  []
+  (view (bar-chart (take max-hits (keys ips2))
                   (take max-hits (vals ips2))
                  :title "IP Addresss/Requests"
                  :x-label "IP Address"
-                 :y-label "Requests"))
+                 :y-label "Requests")))
 
-;------------------------------------------------------------------------------
-; to post to http://www.ipgp.net with body ip=69.181.46.108&mode=view
-;------------------------------------------------------------------------------
-;(http/string (http/http-agent "http://www.ipgp.net"
-;      :method "POST" :body "ip=69.181.46.108&mode=view"
-;      :headers {:Content-Type "application/x-www-form-urlencoded",
-;                 :Referer "http://www.ipgp.net"}
-;))
+; pie chart of the API call frequency histogram
+(defn show-api-calls
+  []
+  (view (pie-chart (keys calls) (vals calls)
+       :title "api calls"
+       :legend true)))
 
+; pie-chart of the API calls and their average response times
+(defn show-api-call-avgs
+  []
+  (let [call-avgs (gen-call-avgs log-dir)]
+    (view (pie-chart (keys call-avgs) (vals call-avgs)
+       :title "api call avgs (ms)"
+       :legend true))))
 
 ;------------------------------------------------------------------------------
 ; post to get the lat, lng of the ip...bit of a hack
@@ -290,30 +309,3 @@
                               :body (str "ip=" ip-addr-str)))))
 (def locations
     (map get-location (take max-hits (keys ips2))))
-;------------------------------------------------------------------------------
-; prototype code below...
-;------------------------------------------------------------------------------
-; for example
-(walkr log-dir #".*\.access.log")
-
-(defn parse-it
-  [filename]
-  (get-ip-addr
-    (first
-      (string/split
-      (last (drop 1 (duck/read-lines filename)))
-      #","))))
-
-(defn walk 
-  " doseq each item in a dir, matching file name to
-  pattern"
-  [dirpath pattern]
-    (doseq [file (-> dirpath File. file-seq)]
-          (if (re-matches pattern (.getName file))
-                  (println (.getPath file)))))
-
-  ;(take-nth 2 (drop 1 (duck/read-lines filename))))
-  ;(read-lines filename)
-
-;(reduce #(assoc %1 %2 (inc (%1 %2 0))) {} (re-seq #"\w+" s))
-
